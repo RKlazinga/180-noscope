@@ -15,7 +15,6 @@ size = 2 * padding + 2 * radius
 
 
 class UI(QWidget):
-
     IM_WIDTH, IM_HEIGHT = 800, 500
 
     def __init__(self):
@@ -31,6 +30,8 @@ class UI(QWidget):
         self.im = ClickablePixmapItem()
         self.im_scene.addItem(self.im)
 
+        self.im_scale = 1
+
         self.perspective_source = [
             [100, 0],
             [100, 200],
@@ -45,6 +46,8 @@ class UI(QWidget):
             [padding + 2*radius, padding + radius - offset]
         ])
 
+        # add perspective markers
+        self.marker_size = QPixmap("marker.png").size()
         for i in range(4):
             self.im_scene.addItem(PerspectiveMarker(i, self.marker_moved_callback, self.perspective_source[i]))
         self.perspective_source = np.float32(self.perspective_source)
@@ -63,7 +66,7 @@ class UI(QWidget):
         self.control_layout.addWidget(self.next_btn)
 
         self.control_layout.addStretch()
-        self.open_image("test.jpg")
+        self.open_image("01.jpg")
         self.show()
 
     def open_image(self, path):
@@ -71,18 +74,19 @@ class UI(QWidget):
         self.im.setPixmap(pixmap)
 
         scale = max(pixmap.width() / self.IM_WIDTH, pixmap.height() / self.IM_HEIGHT)
+        self.im_scale = scale
         self.im.setScale(1 / scale)
 
     def marker_moved_callback(self, marker_idx, pos: QPointF):
-        self.perspective_source[marker_idx][0] = pos.x()
-        self.perspective_source[marker_idx][1] = pos.y()
+        self.perspective_source[marker_idx][0] = (pos.x() + self.marker_size.width()//2) * self.im_scale
+        self.perspective_source[marker_idx][1] = (pos.y() + self.marker_size.height()//2) * self.im_scale
 
         self.recompute_warped()
 
     def recompute_warped(self):
         matrix = cv2.getPerspectiveTransform(self.perspective_source,
                                              self.perspective_target)
-        im = cv2.imread("test.jpg")
+        im = cv2.imread("01.jpg")
         result = cv2.warpPerspective(im, matrix, (size, size))
         height, width, channel = result.shape
         q_image = QImage(result.data, width, height, 3 * width, QImage.Format_BGR888)
@@ -104,6 +108,7 @@ class PerspectiveMarker(QGraphicsPixmapItem):
         self.callback = callback
 
         self.setPos(*pos)
+        # TODO improve marker PNG
         self.setPixmap(QPixmap("marker.png"))
 
     def mousePressEvent(self, event):
