@@ -2,8 +2,7 @@ import json
 import os
 
 import cv2
-from PyQt5 import QtGui
-from PyQt5.QtCore import QPoint, QPointF, Qt
+from PyQt5.QtCore import QPointF, Qt
 from PyQt5.QtGui import QPixmap, QImage, QKeyEvent
 from PyQt5.QtWidgets import *
 import numpy as np
@@ -160,9 +159,3 @@ class PerspectiveMarker(QGraphicsPixmapItem):
     def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):
         self.callback(self.idx, self.pos())
         self.setPos(self.pos() + (event.pos() - event.lastPos()))
-
-
-if __name__ == '__main__':
-    app = QApplication([])
-    ui = UI()
-    app.exec_()

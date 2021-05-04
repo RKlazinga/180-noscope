@@ -1,2 +1,4 @@
 raw_data/*
 corrected_data/*
+**/__pycache__
+**.pyc
