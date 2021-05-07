@@ -151,7 +151,7 @@ class PerspectiveMarker(QGraphicsPixmapItem):
         self.callback = callback
 
         self.setPos(*pos)
-        self.setPixmap(QPixmap("perspective_shift/marker.png"))
+        self.setPixmap(QPixmap(f"perspective_shift/marker{idx}.png"))
 
     def mousePressEvent(self, event):
         pass
