@@ -3,7 +3,7 @@ import os
 
 import cv2
 from PyQt5.QtCore import QPointF, Qt
-from PyQt5.QtGui import QPixmap, QImage, QKeyEvent
+from PyQt5.QtGui import QPixmap, QImage, QKeyEvent, QColor
 from PyQt5.QtWidgets import *
 import numpy as np
 
@@ -18,7 +18,7 @@ size = 2 * padding + 2 * radius
 
 
 class UI(QWidget):
-    IM_WIDTH, IM_HEIGHT = 800, 500
+    IM_WIDTH, IM_HEIGHT = 800, size*2
 
     def __init__(self):
         super().__init__()
@@ -32,7 +32,7 @@ class UI(QWidget):
         self.im_scene = QGraphicsScene()
         self.im_view.setScene(self.im_scene)
 
-        self.im = ClickablePixmapItem()
+        self.im = QGraphicsPixmapItem()
         self.im_scene.addItem(self.im)
 
         self.im_scale = None
@@ -61,14 +61,24 @@ class UI(QWidget):
         self.perspective_source = np.float32(self.perspective_source)
 
         self.im_view.setMinimumSize(self.IM_WIDTH, self.IM_HEIGHT)
-        self.layout.addWidget(self.im_view, 0, 0, 2, 1)
+        self.layout.addWidget(self.im_view, 0, 0, 3, 1)
 
         self.sample_output = QLabel()
         self.sample_output.setMinimumSize(size, size)
         self.layout.addWidget(self.sample_output, 0, 1)
 
+        self.classification_box = QGraphicsView()
+        self.classification_box.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.classification_box.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.classification_box.setFixedSize(size, size)
+        self.classification_box_scene = QGraphicsScene()
+        self.classification_box.setScene(self.classification_box_scene)
+        for i in os.listdir("perspective_shift/assets"):
+            self.classification_box_scene.addItem(ClickablePixmapItem(i, size/460))
+        self.layout.addWidget(self.classification_box, 1, 1)
+
         self.control_layout = QVBoxLayout()
-        self.layout.addLayout(self.control_layout, 1, 1)
+        self.layout.addLayout(self.control_layout, 2, 1)
 
         self.info_label = QLabel("")
         self.control_layout.addWidget(self.info_label)
@@ -137,11 +147,35 @@ class UI(QWidget):
 
 
 class ClickablePixmapItem(QGraphicsPixmapItem):
-    def __init__(self):
+    def __init__(self, filename, scale):
         super().__init__()
+        self.idx = int(filename.split(".")[0])
+        self.setPixmap(QPixmap(f"perspective_shift/assets/{filename}"))
+        self.count = 0
+        self.setScale(scale)
 
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
-        pass
+        if event.button() == 1:
+            self.setCount(self.count + 1)
+        elif event.button() == 2:
+            self.setCount(max(0, self.count - 1))
+
+    def setCount(self, count):
+        self.count = count
+        color_tup = [
+            [0, 0, 255],
+            [0, 255, 255],
+            [255, 0, 255],
+        ][min(count-1,2)]
+        color = QColor(*color_tup)
+
+        self.effect = QGraphicsColorizeEffect()
+        self.effect.setColor(color)
+        self.effect.setStrength(0.8)
+
+        if self.count == 0:
+            self.effect.setEnabled(False)
+        self.setGraphicsEffect(self.effect)
 
 
 class PerspectiveMarker(QGraphicsPixmapItem):
