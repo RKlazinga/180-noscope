@@ -73,8 +73,14 @@ class UI(QWidget):
         self.classification_box.setFixedSize(size, size)
         self.classification_box_scene = QGraphicsScene()
         self.classification_box.setScene(self.classification_box_scene)
+
+        bg_item = QGraphicsPixmapItem(QPixmap("perspective_shift/assets/bg.png"))
+        bg_item.setScale(size/460)
+        self.classification_box_scene.addItem(bg_item)
+
         for i in os.listdir("perspective_shift/assets"):
-            self.classification_box_scene.addItem(ClickablePixmapItem(i, size/460))
+            if i != "bg.png":
+                self.classification_box_scene.addItem(ClickablePixmapItem(i, size/460))
         self.layout.addWidget(self.classification_box, 1, 1)
 
         self.control_layout = QVBoxLayout()
