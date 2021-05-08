@@ -78,9 +78,13 @@ class UI(QWidget):
         bg_item.setScale(size/460)
         self.classification_box_scene.addItem(bg_item)
 
+        self.count_dict = dict()
         for i in os.listdir("perspective_shift/assets"):
             if i != "bg.png":
-                self.classification_box_scene.addItem(ClickablePixmapItem(i, size/460))
+                item = ClickablePixmapItem(i, size/460, self.classification_clicked_callback)
+                self.classification_box_scene.addItem(item)
+                item.set_count(0)
+
         self.layout.addWidget(self.classification_box, 1, 1)
 
         self.control_layout = QVBoxLayout()
@@ -97,12 +101,26 @@ class UI(QWidget):
         self.next_image()
         self.show()
 
+    def classification_clicked_callback(self, idx, new_count):
+        self.count_dict[idx] = new_count
+
     def next_image(self):
         # if an image is loaded, save the perspective coords and the output image
         if self.im_path:
             self.im_warped.save(f"corrected_data/{self.im_path}")
+
+            # save coords and dart count
+            data = {
+                "perspective": self.perspective_source.tolist(),
+                "darts": self.count_dict
+            }
             with open(f"corrected_data/{os.path.splitext(self.im_path)[0]}.json", "w") as writefile:
-                writefile.write(json.dumps(self.perspective_source.tolist()))
+                writefile.write(json.dumps(data))
+
+            # reset dart count
+            for i in self.classification_box_scene.items():
+                if isinstance(i, ClickablePixmapItem):
+                    i.set_count(0)
 
         new_im = self.get_raw_image()
         if new_im:
@@ -153,26 +171,28 @@ class UI(QWidget):
 
 
 class ClickablePixmapItem(QGraphicsPixmapItem):
-    def __init__(self, filename, scale):
+    def __init__(self, filename, scale, callback):
         super().__init__()
         self.idx = int(filename.split(".")[0])
+        self.callback = callback
         self.setPixmap(QPixmap(f"perspective_shift/assets/{filename}"))
         self.count = 0
         self.setScale(scale)
 
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
         if event.button() == 1:
-            self.setCount(self.count + 1)
+            self.set_count(self.count + 1)
         elif event.button() == 2:
-            self.setCount(max(0, self.count - 1))
+            self.set_count(max(0, self.count - 1))
 
-    def setCount(self, count):
+    def set_count(self, count):
         self.count = count
+        self.callback(self.idx, self.count)
         color_tup = [
             [0, 0, 255],
             [0, 255, 255],
             [255, 0, 255],
-        ][min(count-1,2)]
+        ][min(count-1, 2)]
         color = QColor(*color_tup)
 
         self.effect = QGraphicsColorizeEffect()
