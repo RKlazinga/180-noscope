@@ -97,6 +97,10 @@ class UI(QWidget):
         self.control_layout.addWidget(self.next_btn)
         self.next_btn.clicked.connect(self.next_image)
 
+        self.skip_btn = QPushButton("Skip")
+        self.control_layout.addWidget(self.skip_btn)
+        self.skip_btn.clicked.connect(self.skip_image)
+
         self.control_layout.addStretch()
         self.next_image()
         self.show()
@@ -126,13 +130,31 @@ class UI(QWidget):
         if new_im:
             self.open_image(new_im)
 
+    def skip_image(self):
+        file_exists = os.path.isfile("corrected_data/_skip.txt")
+
+        with open("corrected_data/_skip.txt", "a") as writefile:
+            if file_exists:
+                writefile.write("|")
+            writefile.write(self.im_path)
+
+        self.im_path = None
+        self.next_image()
+
     def get_raw_image(self):
         raw_images = set(os.listdir("raw_data"))
         corrected_images = set(os.listdir("corrected_data"))
 
         uncorrected_images = raw_images.difference(corrected_images)
+
+        if os.path.isfile("corrected_data/_skip.txt"):
+            with open("corrected_data/_skip.txt", "r") as readfile:
+                skipped_images = set(readfile.read(-1).split("|"))
+                uncorrected_images = uncorrected_images.difference(skipped_images)
+
         if len(uncorrected_images) == 0:
             self.info_label.setText("All images labeled!")
+            self.im_path = None
             return None
         else:
             self.info_label.setText(f"{len(uncorrected_images)} of {len(raw_images)} remaining")
