@@ -8,6 +8,19 @@ from PIL import Image, ImageEnhance
 from tqdm import tqdm
 
 
+KELVIN_TABLE = [
+    (255, 196, 137),
+    (255, 209, 163),
+    (255, 219, 186),
+    (255, 228, 206),
+    (255, 236, 224),
+    (255, 243, 239),
+    (255, 249, 253),
+    (245, 243, 255),
+    (235, 238, 255),
+]
+
+
 def display_markers(im: Image.Image, markers):
     marker: Image.Image = Image.open("data_augmentation/assets/small_marker.png")
     for x, y in markers:
@@ -90,13 +103,27 @@ def augment(im_path):
         warped_persp[i][0] -= box[0]
         warped_persp[i][1] -= box[1]
 
+    # scale down to final size
+    warped_im = warped_im.resize((256, 256))
+    for i in range(4):
+        warped_persp[i][0] *= 256 / 500
+        warped_persp[i][1] *= 256 / 500
+
     # adjust image colour balance, saturation and contrast
-    warped_im = ImageEnhance.Color(warped_im).enhance(1 + random.randint(-10, 10)/40)
-    warped_im = ImageEnhance.Contrast(warped_im).enhance(1 + random.randint(-10, 10)/40)
-    warped_im = ImageEnhance.Brightness(warped_im).enhance(1 + random.randint(-10, 10)/40)
+    warped_im = ImageEnhance.Color(warped_im).enhance(random.uniform(0.9, 1.2))
+    warped_im = ImageEnhance.Contrast(warped_im).enhance(random.uniform(0.8, 1.2))
+    warped_im = ImageEnhance.Brightness(warped_im).enhance(random.uniform(0.8, 1.2))
+
+    # adjust image temperature
+    # thanks to Mark Ransom (https://stackoverflow.com/a/11888449)
+    temp_r, temp_g, temp_b = random.choice(KELVIN_TABLE)
+    convert_matrix = (temp_r / 255.0, 0.0, 0.0, 0.0,
+                      0.0, temp_g / 255.0, 0.0, 0.0,
+                      0.0, 0.0, temp_b / 255.0, 0.0)
+    warped_im = warped_im.convert("RGB", convert_matrix)
 
     # add noise
-    noise_strength = random.uniform(5, 15)
+    noise_strength = random.uniform(5, 10)
     warped_im_arr = np.float64(np.array(warped_im))
     warped_im_arr += np.random.normal(0, noise_strength, warped_im_arr.shape)
     warped_im_arr = np.clip(warped_im_arr, 0, 255)
