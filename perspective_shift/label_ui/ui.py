@@ -1,11 +1,13 @@
 import json
 import os
-
 import cv2
+import numpy as np
+
 from PyQt5.QtCore import QPointF, Qt
 from PyQt5.QtGui import QPixmap, QImage, QKeyEvent, QColor
 from PyQt5.QtWidgets import *
-import numpy as np
+
+from perspective_shift.label_ui.items import PerspectiveMarker, ClickablePixmapItem
 
 
 padding = 60
@@ -57,7 +59,12 @@ class UI(QWidget):
         # add perspective markers
         self.marker_size = QPixmap("perspective_shift/marker.png").size()
         for i in range(4):
-            self.im_scene.addItem(PerspectiveMarker(i, self.marker_moved_callback, self.perspective_source[i]))
+            self.im_scene.addItem(PerspectiveMarker(i,
+                                                    self.marker_clicked_callback,
+                                                    self.marker_moved_callback,
+                                                    self.perspective_source[i]))
+        self.highlighted_marker: PerspectiveMarker = None
+
         self.perspective_source = np.float32(self.perspective_source)
 
         self.im_view.setMinimumSize(self.IM_WIDTH, self.IM_HEIGHT)
@@ -172,6 +179,16 @@ class UI(QWidget):
 
         self.im_cv_raw = cv2.imread(f"raw_data/{self.im_path}")
 
+    def marker_clicked_callback(self, marker: PerspectiveMarker):
+        if self.highlighted_marker:
+            self.highlighted_marker.setGraphicsEffect(None)
+
+        self.highlighted_marker = marker
+        halo = QGraphicsColorizeEffect()
+        halo.setColor(QColor(240, 0, 100))
+        halo.setStrength(0.8)
+        marker.setGraphicsEffect(halo)
+
     def marker_moved_callback(self, marker_idx, pos: QPointF):
         self.perspective_source[marker_idx][0] = (pos.x() + self.marker_size.width()//2) * self.im_scale
         self.perspective_source[marker_idx][1] = (pos.y() + self.marker_size.height()//2) * self.im_scale
@@ -190,54 +207,13 @@ class UI(QWidget):
     def keyPressEvent(self, event: QKeyEvent):
         if event.key() == Qt.Key_Space:
             self.next_image()
-
-
-class ClickablePixmapItem(QGraphicsPixmapItem):
-    def __init__(self, filename, scale, callback):
-        super().__init__()
-        self.idx = int(filename.split(".")[0])
-        self.callback = callback
-        self.setPixmap(QPixmap(f"perspective_shift/assets/{filename}"))
-        self.count = 0
-        self.setScale(scale)
-
-    def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
-        if event.button() == 1:
-            self.set_count(min(3, self.count + 1))
-        elif event.button() == 2:
-            self.set_count(max(0, self.count - 1))
-
-    def set_count(self, count):
-        self.count = count
-        self.callback(self.idx, self.count)
-        color_tup = [
-            [0, 0, 255],
-            [0, 255, 255],
-            [255, 0, 255],
-        ][min(count-1, 2)]
-        color = QColor(*color_tup)
-
-        self.effect = QGraphicsColorizeEffect()
-        self.effect.setColor(color)
-        self.effect.setStrength(0.8)
-
-        if self.count == 0:
-            self.effect.setEnabled(False)
-        self.setGraphicsEffect(self.effect)
-
-
-class PerspectiveMarker(QGraphicsPixmapItem):
-    def __init__(self, idx, callback, pos):
-        super().__init__()
-        self.idx = idx
-        self.callback = callback
-
-        self.setPos(*pos)
-        self.setPixmap(QPixmap(f"perspective_shift/marker{idx}.png"))
-
-    def mousePressEvent(self, event):
-        pass
-
-    def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):
-        self.callback(self.idx, self.pos())
-        self.setPos(self.pos() + (event.pos() - event.lastPos()))
+        if self.highlighted_marker:
+            if event.key() == Qt.Key_W:
+                self.highlighted_marker.moveBy(0, -1)
+            if event.key() == Qt.Key_A:
+                self.highlighted_marker.moveBy(-1, 0)
+            if event.key() == Qt.Key_S:
+                self.highlighted_marker.moveBy(0, 1)
+            if event.key() == Qt.Key_D:
+                self.highlighted_marker.moveBy(1, 0)
+            self.marker_moved_callback(self.highlighted_marker.idx, self.highlighted_marker.pos())
