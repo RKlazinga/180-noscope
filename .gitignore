@@ -5,3 +5,5 @@ augmented_data/*
 
 **/__pycache__
 **.pyc
+
+**.pth
