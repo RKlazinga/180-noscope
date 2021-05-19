@@ -5,6 +5,7 @@ import random
 import numpy as np
 import cv2
 from PIL import Image, ImageEnhance
+from tqdm import tqdm
 
 
 def display_markers(im: Image.Image, markers):
@@ -15,10 +16,15 @@ def display_markers(im: Image.Image, markers):
 
 
 def augment_all():
-    for i in os.listdir("raw_data"):
-        if i == ".keep":
+    skip_list = []
+    if os.path.isfile("corrected_data/_skip.txt"):
+        with open("corrected_data/_skip.txt", "r") as readfile:
+            skip_list = readfile.read(-1).split("|")
+
+    for i in tqdm(os.listdir("raw_data")):
+        if i == ".keep" or i in skip_list:
             continue
-        for _ in range(25):
+        for _ in range(10):
             augment(i)
 
 
@@ -43,28 +49,41 @@ def augment(im_path):
     persp = np.float32(im_label["perspective"])
 
     im: Image.Image = Image.open(f"raw_data/{im_path}")
-    im_cv = cv2.imread(f"raw_data/{im_path}")
+    # downscale image to reasonable height
+    scale_factor = 500 / im.height
+    persp = persp * scale_factor
+    im.thumbnail([1000000, 500])
+    im_cv = cv2.cvtColor(np.array(im), cv2.COLOR_RGB2BGR)
+
+    # determine crop box
+    crop_amount = (im.width - 500)
+    left_crop = random.randint(crop_amount//4, 3 * crop_amount // 4)
+    # left_crop = crop_amount//2
+    right_crop = crop_amount - left_crop
+    box = [
+        left_crop,
+        0,
+        im.width - right_crop,
+        im.height
+    ]
 
     # warp perspective
     # basic way: add gaussian noise to the 4 corner points
-    # TODO scale the noise by the distance between the points!
     warped_persp = persp.copy()
     for i in range(4):
         for j in range(2):
-            warped_persp[i][j] += random.gauss(0, 5)
+            v = warped_persp[i][j]
+            v += random.gauss(0, 5)
+            # ensure none of the perspective points will fall outside the cropped image
+            v = max(box[j] + 5, v)
+            v = min(box[j+2] - 5, v)
+            warped_persp[i][j] = v
 
     matrix = cv2.getPerspectiveTransform(persp, warped_persp)
     warped_im = cv2.warpPerspective(im_cv, matrix, (im.width, im.height))
     warped_im = Image.fromarray(cv2.cvtColor(warped_im, cv2.COLOR_BGR2RGB))
 
-    # crop
-    # TODO scale crop box by image size
-    box = [
-        random.randint(20, 80),
-        random.randint(20, 80),
-        warped_im.width - random.randint(5, 50),
-        warped_im.height - random.randint(5, 50),
-    ]
+    # run crop on warped image
     warped_im = warped_im.crop(box)
     # adjust warped coordinates according to crop
     for i in range(4):
@@ -77,8 +96,9 @@ def augment(im_path):
     warped_im = ImageEnhance.Brightness(warped_im).enhance(1 + random.randint(-10, 10)/40)
 
     # add noise
+    noise_strength = random.uniform(5, 15)
     warped_im_arr = np.float64(np.array(warped_im))
-    warped_im_arr += np.random.normal(0, 15, warped_im_arr.shape)
+    warped_im_arr += np.random.normal(0, noise_strength, warped_im_arr.shape)
     warped_im_arr = np.clip(warped_im_arr, 0, 255)
     warped_im = Image.fromarray(np.uint8(warped_im_arr))
 
