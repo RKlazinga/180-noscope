@@ -203,7 +203,7 @@ class ClickablePixmapItem(QGraphicsPixmapItem):
 
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
         if event.button() == 1:
-            self.set_count(self.count + 1)
+            self.set_count(min(3, self.count + 1))
         elif event.button() == 2:
             self.set_count(max(0, self.count - 1))
 
