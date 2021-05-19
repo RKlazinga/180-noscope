@@ -14,6 +14,14 @@ def display_markers(im: Image.Image, markers):
     im.show()
 
 
+def augment_all():
+    for i in os.listdir("raw_data"):
+        if i == ".keep":
+            continue
+        for _ in range(25):
+            augment(i)
+
+
 def augment(im_path):
     """
     Modify an image so it can be used as an additional training sample.
@@ -86,5 +94,6 @@ def augment(im_path):
 
 
 if __name__ == '__main__':
-    w_im, w_p = augment("01.jpg")
-    display_markers(w_im, w_p)
+    augment_all()
+    # w_im, w_p = augment("01.jpg")
+    # display_markers(w_im, w_p)
