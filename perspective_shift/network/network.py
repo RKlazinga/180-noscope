@@ -35,7 +35,7 @@ class PerspectiveNetwork(nn.Module):
     def __init__(self):
         super().__init__()
 
-        mult = 6
+        mult = 8
         in_size = 256
         conv_layers = 7
         regression_out = 8
@@ -54,8 +54,10 @@ class PerspectiveNetwork(nn.Module):
         self.layers.append(nn.Flatten())
 
         total_vars = int((in_size / 2**conv_layers)**2 * total_vars)
-        self.layers.append(nn.Linear(total_vars, total_vars // 2))
-        self.layers.append(nn.Linear(total_vars // 2, regression_out))
+        self.layers.append(nn.Linear(total_vars, total_vars))
+        self.layers.append(nn.ReLU())
+        self.layers.append(nn.Linear(total_vars, regression_out))
+        self.layers.append(nn.ReLU())
 
         self.model = nn.Sequential(*self.layers)
 
@@ -70,10 +72,13 @@ if __name__ == '__main__':
     torchsummary.summary(network, input_size=(3, 256, 256))
 
     train_dataset = PerspectiveDataset()
-    train_loader = DataLoader(train_dataset, batch_size=32)
+    train_loader = DataLoader(train_dataset, shuffle=True, batch_size=32)
 
     test_dataset = PerspectiveDataset(is_test=True)
-    test_loader = DataLoader(test_dataset, batch_size=32)
+    test_loader = DataLoader(test_dataset, shuffle=True, batch_size=32)
+
+    # ensure the train and test dataset have no overlap!
+    assert len(set(train_dataset.images).intersection(test_dataset.images)) == 0
 
     criterion = MSELoss()
 
@@ -100,7 +105,7 @@ if __name__ == '__main__':
                 test_loss += single_loss.item()
         test_loss /= len(test_loader)
 
-        print(f"Epoch {epoch}\t Train Loss={train_loss}\t Test Loss={test_loss}")
-    torch.save(network.state_dict(), os.path.join(os.getcwd(),"NETWORK.pth"))
+        print(f"Epoch {epoch}\t Train Loss={train_loss ** 0.5}\t Test Loss={test_loss ** 0.5}")
+        torch.save(network.state_dict(), os.path.join(os.getcwd(),"NETWORK.pth"))
 
 

@@ -21,10 +21,14 @@ KELVIN_TABLE = [
 ]
 
 
-def display_markers(im: Image.Image, markers):
+def display_markers(im: Image.Image, true_markers, output_markers=None):
     marker: Image.Image = Image.open("data_augmentation/assets/small_marker.png")
-    for x, y in markers:
+    for x, y in true_markers:
         im.paste(marker, (int(x)-marker.width//2, int(y)-marker.height//2), marker)
+    if output_markers:
+        red_marker: Image.Image = Image.open("data_augmentation/assets/red_marker.png")
+        for x, y in output_markers:
+            im.paste(red_marker, (int(x)-red_marker.width//2, int(y)-red_marker.height//2), red_marker)
     im.show()
 
 
