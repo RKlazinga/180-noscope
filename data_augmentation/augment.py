@@ -41,7 +41,7 @@ def augment_all():
     for i in tqdm(os.listdir("raw_data")):
         if i == ".keep" or i in skip_list:
             continue
-        for _ in range(10):
+        for _ in range(20):
             augment(i)
 
 

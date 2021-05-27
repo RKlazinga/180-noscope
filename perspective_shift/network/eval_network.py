@@ -29,7 +29,7 @@ if __name__ == '__main__':
     os.chdir(os.path.dirname(os.getcwd()))
 
     network = perspective_network.PerspectiveNetwork()
-    network.load_state_dict(torch.load("perspective_shift/NETWORK.pth"))
+    network.load_state_dict(torch.load("NETWORK.pth"))
     paths = [x for x in os.listdir("augmented_data")[-100::24] if not x.endswith(".json")]
 
     eval_network(network, paths)

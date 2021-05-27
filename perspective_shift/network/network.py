@@ -6,6 +6,7 @@ import torchsummary
 from torch.nn import MSELoss
 from torch.utils.data import DataLoader
 from torch import nn, optim
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from perspective_shift.network.dataset import PerspectiveDataset
@@ -32,10 +33,14 @@ class ConvUnit(nn.Module):
 
 
 class PerspectiveNetwork(nn.Module):
-    def __init__(self):
+    def __init__(self, mult=8):
+        """
+        Set up a CNN to find the dart board and correct for perspective.
+
+        :param mult: Size multiplier for all convolutional units.
+        """
         super().__init__()
 
-        mult = 8
         in_size = 256
         conv_layers = 7
         regression_out = 8
@@ -68,9 +73,15 @@ class PerspectiveNetwork(nn.Module):
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.getcwd()))
 
+    writer = SummaryWriter()
+
     epochs = 10
 
     network = PerspectiveNetwork()
+
+    if os.path.isfile("NETWORK.pth"):
+        network.load_state_dict(torch.load("NETWORK.pth"))
+
     optimiser = optim.Adam(network.parameters())
     torchsummary.summary(network, input_size=(3, 256, 256))
 
@@ -91,12 +102,17 @@ if __name__ == '__main__':
     assert len(train_dataset) + len(test_dataset) + len(validation_dataset) == \
            len([x for x in os.listdir("augmented_data") if not x.endswith((".keep", ".json"))])
 
+    # ensure the overlap of ground images between datasets is minimal
+    assert len(set([x.split("-")[0] for x in train_dataset.images]).intersection(set([x.split("-")[0] for x in test_dataset.images]))) < 2
+
     criterion = MSELoss()
+
+    prev_test_loss = 1e9
 
     start = time.time()
     for epoch in range(1, epochs+1):
         train_loss = 0
-        for batch in tqdm(train_loader, desc=f"Training epoch {epoch}"):
+        for idx, batch in enumerate(tqdm(train_loader, desc=f"Training epoch {epoch}")):
             optimiser.zero_grad()
 
             out = network.forward(batch["input"])
@@ -106,19 +122,25 @@ if __name__ == '__main__':
             single_loss.backward()
             optimiser.step()
 
+            writer.add_scalar("Train Accuracy", single_loss.item(), epoch * len(train_loader) + idx)
+
             train_loss += single_loss.item()
         train_loss /= len(train_loader)
 
         test_loss = 0
         with torch.no_grad():
-            for batch in tqdm(test_loader, desc=f"Testing epoch {epoch}"):
+            for idx, batch in enumerate(tqdm(test_loader, desc=f"Testing epoch {epoch}")):
                 out = network.forward(batch["input"])
                 single_loss = criterion(out, batch["label"])
+                writer.add_scalar("Test Accuracy", single_loss.item(), epoch * len(test_loader) + idx)
                 test_loss += single_loss.item()
         test_loss /= len(test_loader)
 
         print(f"Epoch {epoch}\t Train Loss={train_loss ** 0.5}\t Test Loss={test_loss ** 0.5}")
-        torch.save(network.state_dict(), os.path.join(os.getcwd(),"NETWORK.pth"))
+
+        if test_loss < prev_test_loss:
+            torch.save(network.state_dict(), os.path.join(os.getcwd(), "NETWORK.pth"))
+            prev_test_loss = test_loss
 
     # validate
     validation_loss = 0
