@@ -1,6 +1,6 @@
-raw_data/*
-corrected_data/*
-augmented_data/*
+data/raw/*
+data/corrected/*
+data/augmented/*
 !*/.keep
 
 **/__pycache__

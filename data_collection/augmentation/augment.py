@@ -22,11 +22,11 @@ KELVIN_TABLE = [
 
 
 def display_markers(im: Image.Image, true_markers, output_markers=None):
-    marker: Image.Image = Image.open("data_augmentation/assets/small_marker.png")
+    marker: Image.Image = Image.open("augmentation/assets/small_marker.png")
     for x, y in true_markers:
         im.paste(marker, (int(x)-marker.width//2, int(y)-marker.height//2), marker)
     if output_markers:
-        red_marker: Image.Image = Image.open("data_augmentation/assets/red_marker.png")
+        red_marker: Image.Image = Image.open("augmentation/assets/red_marker.png")
         for x, y in output_markers:
             im.paste(red_marker, (int(x)-red_marker.width//2, int(y)-red_marker.height//2), red_marker)
     im.show()
@@ -34,11 +34,11 @@ def display_markers(im: Image.Image, true_markers, output_markers=None):
 
 def augment_all():
     skip_list = []
-    if os.path.isfile("corrected_data/_skip.txt"):
-        with open("corrected_data/_skip.txt", "r") as readfile:
+    if os.path.isfile("corrected/_skip.txt"):
+        with open("corrected/_skip.txt", "r") as readfile:
             skip_list = readfile.read(-1).split("|")
 
-    for i in tqdm(os.listdir("raw_data")):
+    for i in tqdm(os.listdir("raw")):
         if i == ".keep" or i in skip_list:
             continue
         for _ in range(20):
@@ -49,23 +49,23 @@ def augment(im_path):
     """
     Modify an image so it can be used as an additional training sample.
 
-    :param im_path: Name of the image file in raw_data. Note that it must have been labelled already!
+    :param im_path: Name of the image file in raw. Note that it must have been labelled already!
     """
-    # change directory to toplevel of repo (parent of data_augmentation)
+    # change directory to toplevel of repo (parent of augmentation)
     os.chdir(os.path.split(os.path.dirname(os.path.realpath(__file__)))[0])
 
     im_name, im_ext = os.path.splitext(im_path)
-    if im_path not in os.listdir("raw_data"):
+    if im_path not in os.listdir("raw"):
         raise FileNotFoundError(f"{im_path} could not be found in the list of raw images")
 
-    if im_name + ".json" not in os.listdir("corrected_data"):
-        raise FileNotFoundError(f"{im_name} has not been labelled yet! (no file '{im_name}.json' in corrected_data)")
+    if im_name + ".json" not in os.listdir("corrected"):
+        raise FileNotFoundError(f"{im_name} has not been labelled yet! (no file '{im_name}.json' in corrected)")
 
-    with open(f"corrected_data/{im_name}.json") as read_file:
+    with open(f"corrected/{im_name}.json") as read_file:
         im_label = json.loads(read_file.read(-1))
     persp = np.float32(im_label["perspective"])
 
-    im: Image.Image = Image.open(f"raw_data/{im_path}")
+    im: Image.Image = Image.open(f"raw/{im_path}")
     # downscale image to reasonable height
     scale_factor = 500 / im.height
     persp = persp * scale_factor

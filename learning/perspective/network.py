@@ -9,27 +9,9 @@ from torch import nn, optim
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from perspective_shift.network.dataset import PerspectiveDataset
-import perspective_shift.network.eval_network as eval_network
-
-
-class ConvUnit(nn.Module):
-    """
-    Basic combination of convolution, normalisation and activation.
-    """
-    def __init__(self, in_channels, out_channels, kernel_size, *args, **kwargs):
-        super().__init__()
-
-        self.steps = [
-            nn.Conv2d(in_channels, out_channels, kernel_size, *args, **kwargs),
-            nn.ReLU(),
-            nn.BatchNorm2d(out_channels)
-        ]
-
-        self.steps = nn.Sequential(*self.steps)
-
-    def forward(self, x):
-        return self.steps(x)
+from learning.perspective.dataset import PerspectiveDataset
+import learning.perspective.eval_network as eval_network
+from learning.util.conv_unit import ConvUnit
 
 
 class PerspectiveNetwork(nn.Module):
@@ -100,7 +82,7 @@ if __name__ == '__main__':
     assert len(set(train_dataset.images).intersection(validation_dataset.images)) == 0
 
     assert len(train_dataset) + len(test_dataset) + len(validation_dataset) == \
-           len([x for x in os.listdir("augmented_data") if not x.endswith((".keep", ".json"))])
+           len([x for x in os.listdir("augmented") if not x.endswith((".keep", ".json"))])
 
     # ensure the overlap of ground images between datasets is minimal
     assert len(set([x.split("-")[0] for x in train_dataset.images]).intersection(set([x.split("-")[0] for x in test_dataset.images]))) < 2

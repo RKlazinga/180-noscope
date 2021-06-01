@@ -14,7 +14,7 @@ class PerspectiveDataset(data.Dataset):
 
     def __init__(self, split_idx=0):
         super().__init__()
-        self.images = [x for x in os.listdir("augmented_data") if not x.endswith((".keep", ".json"))]
+        self.images = [x for x in os.listdir("augmented") if not x.endswith((".keep", ".json"))]
 
         self.cache = {}
 
@@ -34,9 +34,9 @@ class PerspectiveDataset(data.Dataset):
             return self.cache[idx]
         name = self.images[idx]
 
-        single_im = Image.open(f"augmented_data/{name}")
+        single_im = Image.open(f"augmented/{name}")
         single = transforms.ToTensor()(single_im)
-        with open(f"augmented_data/{os.path.splitext(name)[0]}.json") as readfile:
+        with open(f"augmented/{os.path.splitext(name)[0]}.json") as readfile:
             label = json.loads(readfile.read(-1))["perspective"]
             label = torch.tensor(label).flatten()
         ret_dict = {
