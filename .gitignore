@@ -2,6 +2,9 @@ data/raw/*
 data/corrected/*
 data/augmented/*
 !*/.keep
+.idea/*
+*.7z
+venv/*
 
 **/__pycache__
 **.pyc
