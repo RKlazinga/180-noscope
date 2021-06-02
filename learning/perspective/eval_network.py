@@ -12,9 +12,9 @@ import learning.perspective.network as perspective_network
 def eval_network(network, paths):
     with torch.no_grad():
         for path in paths:
-            im = Image.open(f"augmented/{path}")
+            im = Image.open(f"data/augmented/{path}")
 
-            with open(f"augmented/{os.path.splitext(path)[0]}.json") as readfile:
+            with open(f"data/augmented/{os.path.splitext(path)[0]}.json") as readfile:
                 label = json.loads(readfile.read(-1))["perspective"]
 
             out = network.forward(transforms.ToTensor()(im).view(1, 3, 256, 256))
@@ -30,6 +30,6 @@ if __name__ == '__main__':
 
     network = perspective_network.PerspectiveNetwork()
     network.load_state_dict(torch.load("NETWORK-2.71.pth"))
-    paths = [x for x in os.listdir("augmented")[-100::24] if not x.endswith(".json")]
+    paths = [x for x in os.listdir("data/augmented")[-100::24] if not x.endswith(".json")]
 
     eval_network(network, paths)

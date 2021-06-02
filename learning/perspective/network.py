@@ -82,7 +82,7 @@ if __name__ == '__main__':
     assert len(set(train_dataset.images).intersection(validation_dataset.images)) == 0
 
     assert len(train_dataset) + len(test_dataset) + len(validation_dataset) == \
-           len([x for x in os.listdir("augmented") if not x.endswith((".keep", ".json"))])
+           len([x for x in os.listdir("data/augmented") if not x.endswith((".keep", ".json"))])
 
     # ensure the overlap of ground images between datasets is minimal
     assert len(set([x.split("-")[0] for x in train_dataset.images]).intersection(set([x.split("-")[0] for x in test_dataset.images]))) < 2
