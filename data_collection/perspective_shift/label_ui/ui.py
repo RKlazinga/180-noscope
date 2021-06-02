@@ -7,7 +7,7 @@ from PyQt5.QtCore import QPointF, Qt
 from PyQt5.QtGui import QPixmap, QImage, QKeyEvent, QColor
 from PyQt5.QtWidgets import *
 
-from perspective_shift.label_ui.items import PerspectiveMarker, ClickablePixmapItem
+from data_collection.perspective_shift.label_ui import PerspectiveMarker, ClickablePixmapItem
 
 
 padding = 60
@@ -118,14 +118,14 @@ class UI(QWidget):
     def next_image(self):
         # if an image is loaded, save the perspective coords and the output image
         if self.im_path:
-            self.im_warped.save(f"corrected_data/{self.im_path}")
+            self.im_warped.save(f"corrected/{self.im_path}")
 
             # save coords and dart count
             data = {
                 "perspective": self.perspective_source.tolist(),
                 "darts": self.count_dict
             }
-            with open(f"corrected_data/{os.path.splitext(self.im_path)[0]}.json", "w") as writefile:
+            with open(f"corrected/{os.path.splitext(self.im_path)[0]}.json", "w") as writefile:
                 writefile.write(json.dumps(data))
 
             # reset dart count
@@ -138,9 +138,9 @@ class UI(QWidget):
             self.open_image(new_im)
 
     def skip_image(self):
-        file_exists = os.path.isfile("corrected_data/_skip.txt")
+        file_exists = os.path.isfile("corrected/_skip.txt")
 
-        with open("corrected_data/_skip.txt", "a") as writefile:
+        with open("corrected/_skip.txt", "a") as writefile:
             if file_exists:
                 writefile.write("|")
             writefile.write(self.im_path)
@@ -149,13 +149,13 @@ class UI(QWidget):
         self.next_image()
 
     def get_raw_image(self):
-        raw_images = set(os.listdir("raw_data"))
-        corrected_images = set(os.listdir("corrected_data"))
+        raw_images = set(os.listdir("raw"))
+        corrected_images = set(os.listdir("corrected"))
 
         uncorrected_images = raw_images.difference(corrected_images)
 
-        if os.path.isfile("corrected_data/_skip.txt"):
-            with open("corrected_data/_skip.txt", "r") as readfile:
+        if os.path.isfile("corrected/_skip.txt"):
+            with open("corrected/_skip.txt", "r") as readfile:
                 skipped_images = set(readfile.read(-1).split("|"))
                 uncorrected_images = uncorrected_images.difference(skipped_images)
 
@@ -170,14 +170,14 @@ class UI(QWidget):
     def open_image(self, path):
         self.im_path = path
 
-        pixmap = QPixmap(f"raw_data/{self.im_path}")
+        pixmap = QPixmap(f"raw/{self.im_path}")
         self.im.setPixmap(pixmap)
 
         scale = max(pixmap.width() / self.IM_WIDTH, pixmap.height() / self.IM_HEIGHT)
         self.im_scale = scale
         self.im.setScale(1 / scale)
 
-        self.im_cv_raw = cv2.imread(f"raw_data/{self.im_path}")
+        self.im_cv_raw = cv2.imread(f"raw/{self.im_path}")
 
     def marker_clicked_callback(self, marker: PerspectiveMarker):
         if self.highlighted_marker:

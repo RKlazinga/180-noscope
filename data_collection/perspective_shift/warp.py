@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 while True:
-    im = cv2.imread("../raw_data/01.jpg")
+    im = cv2.imread("../raw/01.jpg")
 
     padding = 60
     radius = 100
