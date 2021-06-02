@@ -1,0 +1,9 @@
+data/raw/*
+data/corrected/*
+data/augmented/*
+!*/.keep
+
+**/__pycache__
+**.pyc
+
+**.pth
