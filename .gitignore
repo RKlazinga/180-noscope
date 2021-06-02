@@ -1,6 +1,7 @@
 data/raw/*
 data/corrected/*
 data/augmented/*
+data/generated/*
 !*/.keep
 .idea/*
 *.7z

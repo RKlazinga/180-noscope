@@ -20,7 +20,7 @@ def get_positions_in_square(square: int) -> Iterator[Tuple[float, float]]:
 
 
 def random_position(board):
-    square = random.randint(0, 82)
+    square = random.randint(0, 81)
     positions = get_positions_in_square(square)
     offset_positions = fix_offset(board, positions)
     position = random.choice(offset_positions)
@@ -49,19 +49,6 @@ def display_markers(im: Image.Image, markers):
     for x, y in markers:
         im.paste(marker, (int(x)-marker.width//2, int(y)-marker.height//2), marker)
     im.show()
-
-
-def augment_all():
-    skip_list = []
-    if os.path.isfile("corrected_data/_skip.txt"):
-        with open("corrected_data/_skip.txt", "r") as readfile:
-            skip_list = readfile.read(-1).split("|")
-
-    for i in tqdm(os.listdir("raw_data")):
-        if i == ".keep" or i in skip_list:
-            continue
-        for _ in range(10):
-            augment(i)
 
 
 def load_data(folder: string):
@@ -96,8 +83,8 @@ def generate(num_images: int):
         board.paste(dart, (int(position[0]) - dart.width // 2, int(position[1]) - dart.height // 2), dart)
         #board.show()
         fname = f"{hex(random.randint(2**20, 2**24))[2:]}"
-        board.save(f"../generated_board_data/{fname}.jpg")
-        with open(f"../generated_board_data/{fname}.json", "w") as write_file:
+        board.save(f"../../data/generated/{fname}.jpg")
+        with open(f"../../data/generated/{fname}.json", "w") as write_file:
             data = {
                 "square": square,
                 "position": position
