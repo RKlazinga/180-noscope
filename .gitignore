@@ -7,3 +7,5 @@ data/augmented/*
 **.pyc
 
 **.pth
+
+runs/*
