@@ -83,7 +83,7 @@ if __name__ == '__main__':
     # ensure the train, test and validation dataset have no overlap!
     assert len(set(train_dataset.images).intersection(test_dataset.images)) == 0
 
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.MSELoss()
 
     prev_test_loss = 1e9
 
@@ -97,7 +97,7 @@ if __name__ == '__main__':
 
             out = network.forward(batch["input"])
             #print(out, batch["class_pos"], criterion(out, batch["class_pos"]))
-            single_loss = criterion((out, 256*256), batch["class_pos"])
+            single_loss = criterion(out, batch["class_pos"])
 
             single_loss.backward()
             optimiser.step()
