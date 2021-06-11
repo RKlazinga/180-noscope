@@ -1,15 +1,18 @@
 # apply both the perspective and classification network to an image
+import math
+
 import cv2
 import torch
 from PIL import Image, ImageFont, ImageDraw
+from scipy import ndimage
 from torchvision import transforms
 import numpy as np
 
 from learning.classification.network import ClassificationNetwork
-from learning.perspective.network import PerspectiveNetwork
+from learning.perspective.network import PerspectiveNetwork, warp_image
 
 
-def classify_raw(im_path, pnet, cnet):
+def classify_raw(im_path, device, pnet, cnet):
     im: Image.Image = Image.open(im_path).convert("RGB")
 
     # crop image down to square and resize to 256
@@ -19,38 +22,27 @@ def classify_raw(im_path, pnet, cnet):
         box = (0, (im.height - im.width)/2, im.width, im.height - (im.height - im.width)/2)
     im = im.resize((256, 256), box=box)
 
-    out = pnet(transforms.ToTensor()(im).view(1, 3, 256, 256))
-
-    out_parsed = []
-    for i in range(4):
-        out_parsed.append([out[0][i*2], out[0][i*2 + 1]])
-
-    im_cv = np.array(im)
-
-    radius = 80
-    padding = 128 - radius
-    # offset is the distance between the center-line and the corner we are targeting
-    # on 389 radius the offset is 63, so
-    offset = radius * 63/389
-
-    size = 2 * padding + 2 * radius
-    print(size)
-    perspective_in = np.float32(out_parsed)
-    perspective_target = np.float32([
-        [padding + radius + offset, padding],
-        [padding + radius - offset, padding + 2*radius],
-        [padding, padding + radius - offset],
-        [padding + 2*radius, padding + radius + offset]
-    ])
-
-    matrix = cv2.getPerspectiveTransform(perspective_in, perspective_target)
-    result = cv2.warpPerspective(im_cv, matrix, (size, size))
-    warped_im = Image.fromarray(result)
+    warped_im = warp_image(pnet, device, im)
 
     classification_in_tensor = transforms.ToTensor()(warped_im).view(1, 3, 256, 256)
-    classification_out = cnet(classification_in_tensor)
+    c_out = cnet(classification_in_tensor)[0]
 
-    classification_choice = torch.argmax(classification_out)
+    # find nearest class
+    classification_choice = -1
+    closest_dist = 1e9
+    for i in range(82):
+        img: Image.Image = Image.open(f"data_collection/perspective_shift/assets/{i}.png").convert("RGBA")
+        im_array = np.array(img)[:, :, -1]
+        com = ndimage.center_of_mass(im_array)[::-1]
+        com_x = com[0] / 460
+        com_y = com[1] / 460
+
+        dist = math.sqrt((c_out[0] - com_x) ** 2 + (c_out[1] - com_y) ** 2)
+        if dist < closest_dist:
+            closest_dist = dist
+            classification_choice = i
+
+    # classification_choice = torch.argmax(classification_out)
 
     im_show = Image.new("RGB", (3 * 256, 300))
     font = ImageFont.FreeTypeFont(r"C:\Windows\fonts\arial.ttf", size=22)
@@ -67,16 +59,21 @@ def classify_raw(im_path, pnet, cnet):
     label_im = Image.open(f"data_collection/perspective_shift/assets/{int(classification_choice)}.png")
     label_im = label_im.resize((256, 256))
     im_show.paste(label_im, (512, 0))
+    im_draw.ellipse((512 + 256 * c_out[0] - 3,
+                     256 * c_out[1] - 3,
+                     512 + 256 * c_out[0] + 3,
+                     256 * c_out[1] + 3))
 
     im_show.show()
 
 
-
 if __name__ == '__main__':
+    dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     perspective_net = PerspectiveNetwork()
     perspective_net.load_state_dict(torch.load("NETWORK-2.71.pth"))
 
     classification_net = ClassificationNetwork()
-    classification_net.load_state_dict(torch.load("C_NETWORK.pth"))\
+    classification_net.load_state_dict(torch.load("C2_NETWORK.pth"))\
 
-    classify_raw("data/raw/IMG_20210511_142817727.jpg", perspective_net, classification_net)
+    classify_raw("data/raw/IMG_20210511_142817727.jpg", dev, perspective_net, classification_net)

@@ -5,8 +5,10 @@ import torch
 from PIL import Image
 from torch.utils import data
 from torchvision import transforms
+import numpy as np
+from scipy import ndimage
 
-import learning.classification.network as classification_network
+from learning.perspective.network import warp_image
 
 
 class ClassificationDataset(data.Dataset):
@@ -14,9 +16,17 @@ class ClassificationDataset(data.Dataset):
     # train, test, validation
     SPLIT = [0.8, 0.2, 0.0]
 
-    def __init__(self, split_idx=0):
+    def __init__(self, perspective_net, device, split_idx=0):
         super().__init__()
-        self.images = [x for x in os.listdir("data/corrected") if not x.endswith((".keep", ".json", ".txt"))]
+
+        self.perspective_net = perspective_net
+        self.device = device
+
+        # load all augmented CLASSIFICATION images, which can be used directly
+        self.images = [("c", x) for x in os.listdir("data/generated") if not x.endswith((".keep", ".json", ".txt"))]
+
+        # load all augmented PERSPECTIVE images, to be corrected later
+        self.images.extend([("p", x) for x in os.listdir("data/augmented") if not x.endswith((".keep", ".json", ".txt"))])
 
         self.cache = {}
 
@@ -28,37 +38,67 @@ class ClassificationDataset(data.Dataset):
         # extract correct fraction
         self.images = self.images[cumulative[split_idx]: cumulative[split_idx+1]]
 
+        # precompute the centers of all 82 classes
+        # for this, we use PNGs displayed in the labelling GUI
+        self.center_cache = self.get_centers()
+
+    @staticmethod
+    def get_centers():
+        center_cache = dict()
+        for i in range(82):
+            img: Image.Image = Image.open(f"data_collection/perspective_shift/assets/{i}.png").convert("RGBA")
+            im_array = np.array(img)[:, :, -1]
+            com = ndimage.center_of_mass(im_array)[::-1]
+            com = com[0] / 460, com[1] / 460
+            center_cache[i] = com
+
+        # since the bullseye and the green ring around it will have approximately the same center of mass,
+        # we shift one up and the other down slightly
+        center_cache[0] = center_cache[0][0], center_cache[0][1] - 5
+        center_cache[1] = center_cache[1][0], center_cache[1][1] + 5
+        center_cache[82] = (0.0, 0.0)
+
+        return center_cache
+
     def __len__(self):
         return len(self.images)
 
     def __getitem__(self, idx):
         if idx in self.cache:
             return self.cache[idx]
-        name = self.images[idx]
+        im_type, name = self.images[idx]
 
-        single_im = Image.open(f"data/corrected/{name}")
+        if im_type == "p":
+            single_im = Image.open(f"data/augmented/{name}")
+            warped_im = warp_image(self.perspective_net, self.device, single_im)
 
-        # resize to correct dimensions for network
-        single_im = single_im.resize((classification_network.ClassificationNetwork.IN_SIZE,
-                                      classification_network.ClassificationNetwork.IN_SIZE))
+            with open(f"data/augmented/{os.path.splitext(name)[0]}.json") as readfile:
+                info = json.loads(readfile.read(-1))
+                label = list(info["darts"].values())
 
-        single = transforms.ToTensor()(single_im)
+            try:
+                label = label.index(1)
+            except ValueError:
+                label = 82
 
-        with open(f"data/corrected/{os.path.splitext(name)[0]}.json") as readfile:
-            info = json.loads(readfile.read(-1))
-            label = list(info["darts"].values())
+            ret_dict = {
+                "input": transforms.ToTensor()(warped_im),
+                "class_pos": torch.tensor(self.center_cache[label]).float()
+            }
+        elif im_type == "c":
+            single_im = Image.open(f"data/generated/{name}")
 
-        # IMPORTANT: CrossEntropyLoss requires a single number as the label, namely the correct index
-        # Hence we reduce label down to a single index, even if there are multiple darts(!)
-        try:
-            label = label.index(1)
-        except ValueError:
-            label = 82
+            with open(f"data/generated/{os.path.splitext(name)[0]}.json") as readfile:
+                info = json.loads(readfile.read(-1))
+                label = info["square"][0]
 
-        ret_dict = {
-            "input": single,
-            "label": label,
+            ret_dict = {
+                "input": transforms.ToTensor()(single_im),
+                "class_pos": torch.tensor(self.center_cache[label]).float()
+            }
 
-        }
+        else:
+            raise ValueError(f"Unknown image type {im_type}")
+
         self.cache[idx] = ret_dict
         return ret_dict
