@@ -23,6 +23,11 @@ class PerspectiveDataset(data.Dataset):
             cumulative.append(int(sum(self.SPLIT[:s]) * len(self.images)))
         cumulative.append(len(self.images))
 
+        u = torch.linspace(0, 1, 256)
+        u = u.repeat(256, 1)
+        v = u.transpose(0, 1)
+        self.uv = torch.stack([u, v], dim=0)
+
         # extract correct fraction
         self.images = self.images[cumulative[split_idx]: cumulative[split_idx+1]]
 
@@ -36,6 +41,7 @@ class PerspectiveDataset(data.Dataset):
 
         single_im = Image.open(f"data/augmented/{name}")
         single = transforms.ToTensor()(single_im)
+        single = torch.cat([single, self.uv], dim=0)
         with open(f"data/augmented/{os.path.splitext(name)[0]}.json") as readfile:
             label = json.loads(readfile.read(-1))["perspective"]
             label = torch.tensor(label).flatten()

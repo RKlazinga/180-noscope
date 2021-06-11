@@ -35,6 +35,11 @@ class ClassificationDataset(data.Dataset):
             cumulative.append(int(sum(self.SPLIT[:s]) * len(self.images)))
         cumulative.append(len(self.images))
 
+        u = torch.linspace(0, 1, 256)
+        u = u.repeat(256, 1)
+        v = u.transpose(0, 1)
+        self.uv = torch.stack([u, v], dim=0)
+
         # extract correct fraction
         self.images = self.images[cumulative[split_idx]: cumulative[split_idx+1]]
 
@@ -54,9 +59,9 @@ class ClassificationDataset(data.Dataset):
 
         # since the bullseye and the green ring around it will have approximately the same center of mass,
         # we shift one up and the other down slightly
-        center_cache[0] = center_cache[0][0], center_cache[0][1] - 5
-        center_cache[1] = center_cache[1][0], center_cache[1][1] + 5
-        center_cache[82] = (0.0, 0.0)
+        center_cache[0] = center_cache[0][0], center_cache[0][1] - 5/460
+        center_cache[1] = center_cache[1][0], center_cache[1][1] + 5/460
+        center_cache[82] = (1.0, 1.0)
 
         return center_cache
 
@@ -96,9 +101,9 @@ class ClassificationDataset(data.Dataset):
                 "input": transforms.ToTensor()(single_im),
                 "class_pos": torch.tensor(self.center_cache[label]).float()
             }
-
+            self.cache[idx] = ret_dict
         else:
             raise ValueError(f"Unknown image type {im_type}")
 
-        self.cache[idx] = ret_dict
+        ret_dict["input"] = torch.cat([ret_dict["input"], self.uv], dim=0)
         return ret_dict

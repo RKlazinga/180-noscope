@@ -5,17 +5,32 @@ import string
 
 import numpy as np
 import cv2
-from PIL import Image, ImageEnhance
+from PIL import Image, ImageEnhance, ImageFilter
 from tqdm import tqdm
 from typing import Tuple, Iterator
 
+KELVIN_TABLE = [
+    (255, 196, 137),
+    (255, 209, 163),
+    (255, 219, 186),
+    (255, 228, 206),
+    (255, 236, 224),
+    (255, 243, 239),
+    (255, 249, 253),
+    (245, 243, 255),
+    (235, 238, 255),
+]
 
 def get_positions_in_square(square: int) -> Iterator[Tuple[float, float]]:
-    square_image: Image.Image = Image.open(f"../perspective_shift/assets/{square}.png")
+    square_image: Image.Image = Image.open(f"../perspective_shift/assets/{square}.png").convert("RGBA")
+    try:
+        square_image = square_image.filter(ImageFilter.MinFilter(7))
+    except ValueError:
+        pass
     choices = np.asarray(square_image)[:, :, -1]
     ys, xs = np.nonzero(choices)
-    xs = (xs - square_image.width / 2) / square_image.width / 2
-    ys = (ys - square_image.width / 2) / square_image.width / 2
+    xs = xs / (square_image.width / 2) - 1
+    ys = ys / (square_image.height / 2) - 1
     return zip(xs, ys)
 
 
@@ -32,14 +47,12 @@ def fix_offset(board: Image.Image, positions):
     Turns the board relative positions to the actual board position.
     """
 
-    # TODO: Perhaps add a feather operation to get less close to the border
-
-    MAGIC_NUM = 420  # Meme but it works
+    MAGIC_NUM = 275  # Meme but it works
 
     result = []
     for x, y in positions:
-        x = (x * MAGIC_NUM) + board.width / 2
-        y = (y * MAGIC_NUM) + board.height / 2 + 2  # Better results
+        x = (x * MAGIC_NUM) + board.width / 2 - 2
+        y = (y * MAGIC_NUM) + board.height / 2 + 3 # Better results
         result.append((x, y))
     return result
 
@@ -72,29 +85,29 @@ def generate(num_images: int):
     """
 
     darts = load_data("darts")
-    transform_darts(darts, (100, 100))
     print(darts)
     boards = load_data("boards")
+    DARTSIZE = 270
 
     for i in tqdm(range(num_images)):
         board = random.choice(boards).copy()
         im = Image.new('RGBA', board.size)
         positions = []
         squares = []
-        for _ in range(3):
+        for _ in range(1):
             dart = random.choice(darts)
             position, square = random_position(board)
             positions.append(position)
             squares.append(square)
 
-            persp = np.asarray([[0, 0], [0, dart.size[1]], [dart.size[0], dart.size[1]], [dart.size[0], 0]], np.float32)
+            persp = np.asarray([[0, 0], [0, dart.size[1]//2], [dart.size[0]//2, dart.size[1]//2], [dart.size[0]//2, 0]], np.float32)
             # warp perspective
             # basic way: add gaussian noise to the 4 corner points
             warped_persp = persp.copy()
-            for i in range(4):
+            for i in [0,1,3]:
                 for j in range(2):
                     v = warped_persp[i][j]
-                    v += random.gauss(0, 20)
+                    v += random.gauss(0, 5)
                     # ensure none of the perspective points will fall outside the cropped image
                     # v = max(box[j] + 5, v)
                     # v = min(box[j + 2] - 5, v)
@@ -103,14 +116,60 @@ def generate(num_images: int):
             im_cv = cv2.cvtColor(np.array(dart), cv2.COLOR_RGBA2BGRA)
             matrix = cv2.getPerspectiveTransform(persp, warped_persp)
             warped_im = cv2.warpPerspective(im_cv, matrix, (dart.width, dart.height))
-            warped_dart = Image.fromarray(cv2.cvtColor(warped_im, cv2.COLOR_BGRA2RGBA))
+            warped_dart = Image.fromarray(cv2.cvtColor(warped_im, cv2.COLOR_BGRA2RGBA)).resize((DARTSIZE, DARTSIZE)).rotate(random.randint(0, 360), expand=True)
 
-            im.paste(dart, (int(position[0]) - dart.width // 2, int(position[1]) - dart.height // 2), dart)
+            im.paste(warped_dart, (int(position[0]) - warped_dart.width // 2, int(position[1]) - warped_dart.height // 2), warped_dart)
+
+        persp = np.asarray([
+            [im.size[0]//2 - 100, im.size[1]//2 - 100],
+            [im.size[0]//2 - 100, im.size[1]//2 + 100],
+            [im.size[0]//2 + 100, im.size[1]//2 + 100],
+            [im.size[0]//2 + 100, im.size[1]//2 - 100]
+        ], np.float32)
+        # warp perspective
+        # basic way: add gaussian noise to the 4 corner points
+        warped_persp = persp.copy()
+        for i in range(4):
+            for j in range(2):
+                v = warped_persp[i][j]
+                v += random.gauss(0, 5)
+                # ensure none of the perspective points will fall outside the cropped image
+                # v = max(box[j] + 5, v)
+                # v = min(box[j + 2] - 5, v)
+                warped_persp[i][j] = v
 
         board.paste(im, (0, 0), im)
-        #board.show()
+        im_cv = cv2.cvtColor(np.array(board), cv2.COLOR_RGB2BGR)
+        matrix = cv2.getPerspectiveTransform(persp, warped_persp)
+        warped_im = cv2.warpPerspective(im_cv, matrix, (board.width, board.height))
+        warped_im = Image.fromarray(cv2.cvtColor(warped_im, cv2.COLOR_BGR2RGB))
+
+        # adjust image colour balance, saturation and contrast
+        warped_im = ImageEnhance.Color(warped_im).enhance(random.uniform(0.9, 1.2))
+        warped_im = ImageEnhance.Contrast(warped_im).enhance(random.uniform(0.8, 1.2))
+        warped_im = ImageEnhance.Brightness(warped_im).enhance(random.uniform(0.8, 1.2))
+
+        # adjust image temperature
+        # thanks to Mark Ransom (https://stackoverflow.com/a/11888449)
+        temp_r, temp_g, temp_b = random.choice(KELVIN_TABLE)
+        convert_matrix = (temp_r / 255.0, 0.0, 0.0, 0.0,
+                          0.0, temp_g / 255.0, 0.0, 0.0,
+                          0.0, 0.0, temp_b / 255.0, 0.0)
+        warped_im = warped_im.convert("RGB", convert_matrix)
+
+        # add noise
+        noise_strength = random.uniform(5, 10)
+        warped_im_arr = np.float64(np.array(warped_im))
+        warped_im_arr += np.random.normal(0, noise_strength, warped_im_arr.shape)
+        warped_im_arr = np.clip(warped_im_arr, 0, 255)
+        warped_im = Image.fromarray(np.uint8(warped_im_arr))
+        warped_im = warped_im.resize((256, 256), box=(
+            warped_im.size[0]//2 - 450, warped_im.size[1]//2 - 450,
+            warped_im.size[0]//2 + 450, warped_im.size[1]//2 + 450
+        ))
+
         fname = f"{hex(random.randint(2**20, 2**24))[2:]}"
-        board.save(f"../../data/generated/{fname}.jpg")
+        warped_im.save(f"../../data/generated/{fname}.jpg")
         with open(f"../../data/generated/{fname}.json", "w") as write_file:
             data = {
                 "square": squares,
@@ -120,4 +179,4 @@ def generate(num_images: int):
 
 
 if __name__ == '__main__':
-    generate(5)
+    generate(10_000)

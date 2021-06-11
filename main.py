@@ -10,6 +10,8 @@ import numpy as np
 
 from learning.classification.network import ClassificationNetwork
 from learning.perspective.network import PerspectiveNetwork, warp_image
+import os
+import random
 
 
 def classify_raw(im_path, device, pnet, cnet):
@@ -24,8 +26,14 @@ def classify_raw(im_path, device, pnet, cnet):
 
     warped_im = warp_image(pnet, device, im)
 
-    classification_in_tensor = transforms.ToTensor()(warped_im).view(1, 3, 256, 256)
+    u = torch.linspace(0, 1, 256)
+    u = u.repeat(256, 1)
+    v = u.transpose(0, 1)
+    uv = torch.stack([u, v], dim=0)
+
+    classification_in_tensor = torch.cat([transforms.ToTensor()(warped_im), uv], dim=0).view(1, 5, 256, 256).to(device)
     c_out = cnet(classification_in_tensor)[0]
+    print(c_out)
 
     # find nearest class
     classification_choice = -1
@@ -70,10 +78,10 @@ def classify_raw(im_path, device, pnet, cnet):
 if __name__ == '__main__':
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    perspective_net = PerspectiveNetwork()
+    perspective_net = PerspectiveNetwork().to(dev)
     perspective_net.load_state_dict(torch.load("NETWORK-2.71.pth"))
 
-    classification_net = ClassificationNetwork()
+    classification_net = ClassificationNetwork().to(dev)
     classification_net.load_state_dict(torch.load("C2_NETWORK.pth"))\
 
-    classify_raw("data/raw/IMG_20210511_142817727.jpg", dev, perspective_net, classification_net)
+    classify_raw(random.choice([f"data/generated/{file}" for file in os.listdir("data/generated/") if not file.endswith('json')]), dev, perspective_net, classification_net)

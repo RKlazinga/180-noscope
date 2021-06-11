@@ -61,7 +61,7 @@ def warp_image(p_network, device, image):
 
     # feed through perspective network
     with torch.no_grad():
-        perspective_out = p_network(single.to(device))
+        perspective_out = p_network(single.to(device)).cpu()
 
     out_parsed = []
     for i in range(4):
@@ -93,11 +93,16 @@ def warp_image(p_network, device, image):
 
 if __name__ == '__main__':
 
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Using: {device}")
+
+
     writer = SummaryWriter()
 
-    epochs = 10
+    epochs = 100
+    BATCH_SIZE = 128
 
-    network = PerspectiveNetwork()
+    network = PerspectiveNetwork().to(device)
 
     if os.path.isfile("NETWORK.pth"):
         network.load_state_dict(torch.load("NETWORK.pth"))
@@ -106,13 +111,13 @@ if __name__ == '__main__':
     torchsummary.summary(network, input_size=(3, 256, 256))
 
     train_dataset = PerspectiveDataset(split_idx=0)
-    train_loader = DataLoader(train_dataset, shuffle=True, batch_size=32)
+    train_loader = DataLoader(train_dataset, shuffle=True, batch_size=BATCH_SIZE)
 
     test_dataset = PerspectiveDataset(split_idx=1)
-    test_loader = DataLoader(test_dataset, shuffle=True, batch_size=32)
+    test_loader = DataLoader(test_dataset, shuffle=True, batch_size=BATCH_SIZE)
 
     validation_dataset = PerspectiveDataset(split_idx=2)
-    validation_loader = DataLoader(test_dataset, shuffle=True, batch_size=32)
+    validation_loader = DataLoader(test_dataset, shuffle=True, batch_size=BATCH_SIZE)
 
     # ensure the train, test and validation dataset have no overlap!
     assert len(set(train_dataset.images).intersection(test_dataset.images)) == 0
@@ -134,7 +139,8 @@ if __name__ == '__main__':
         train_loss = 0
         for idx, batch in enumerate(tqdm(train_loader, desc=f"Training epoch {epoch}")):
             optimiser.zero_grad()
-
+            batch["input"] = batch["input"].to(device)
+            batch["label"] = batch["label"].to(device)
             out = network.forward(batch["input"])
 
             single_loss = criterion(out, batch["label"])
@@ -150,6 +156,8 @@ if __name__ == '__main__':
         test_loss = 0
         with torch.no_grad():
             for idx, batch in enumerate(tqdm(test_loader, desc=f"Testing epoch {epoch}")):
+                batch["input"] = batch["input"].to(device)
+                batch["label"] = batch["label"].to(device)
                 out = network.forward(batch["input"])
                 single_loss = criterion(out, batch["label"])
                 writer.add_scalar("Test Accuracy", single_loss.item(), epoch * len(test_loader) + idx)
@@ -166,6 +174,8 @@ if __name__ == '__main__':
     validation_loss = 0
     with torch.no_grad():
         for batch in tqdm(validation_loader):
+            batch["input"] = batch["input"].to(device)
+            batch["label"] = batch["label"].to(device)
             out = network.forward(batch["input"])
             single_loss = criterion(out, batch["label"])
             validation_loss += single_loss.item()
