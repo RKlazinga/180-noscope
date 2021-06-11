@@ -8,7 +8,7 @@ from scipy import ndimage
 from torchvision import transforms
 import numpy as np
 
-from learning.classification.network import ClassificationNetwork
+from learning.classification.heatmap_network import HeatmapNetwork
 from learning.perspective.network import PerspectiveNetwork, warp_image
 import os
 import random
@@ -34,6 +34,8 @@ def classify_raw(im_path, device, pnet, cnet):
 
     classification_in_tensor = torch.cat([transforms.ToTensor()(warped_im), uv], dim=0).view(1, 5, 256, 256).to(device)
     c_out = cnet(classification_in_tensor)[0]
+    plt.imshow(c_out.cpu().detach().reshape((256, 256)), cmap='hot', interpolation='nearest')
+    plt.show()
     print(c_out)
 
     # find nearest class
@@ -82,7 +84,7 @@ if __name__ == '__main__':
     perspective_net = PerspectiveNetwork().to(dev)
     perspective_net.load_state_dict(torch.load("NETWORK-2.71.pth"))
 
-    classification_net = ClassificationNetwork().to(dev)
-    #classification_net.load_state_dict(torch.load("C2_NETWORK.pth"))\
+    classification_net = HeatmapNetwork().to(dev)
+    classification_net.load_state_dict(torch.load("HM_NETWORK.pth"))\
 
     classify_raw(random.choice([f"data/generated/{file}" for file in os.listdir("data/generated/") if not file.endswith('json')]), dev, perspective_net, classification_net)

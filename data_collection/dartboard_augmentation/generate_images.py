@@ -139,9 +139,12 @@ def generate(num_images: int):
                 warped_persp[i][j] = v
 
         board.paste(im, (0, 0), im)
+        #display_markers(board, positions)
         im_cv = cv2.cvtColor(np.array(board), cv2.COLOR_RGB2BGR)
         matrix = cv2.getPerspectiveTransform(persp, warped_persp)
         warped_im = cv2.warpPerspective(im_cv, matrix, (board.width, board.height))
+        positions = np.array(positions)
+        positions = cv2.perspectiveTransform(positions[None, :, :], matrix)[0, 0]
         warped_im = Image.fromarray(cv2.cvtColor(warped_im, cv2.COLOR_BGR2RGB))
 
         # adjust image colour balance, saturation and contrast
@@ -163,6 +166,10 @@ def generate(num_images: int):
         warped_im_arr += np.random.normal(0, noise_strength, warped_im_arr.shape)
         warped_im_arr = np.clip(warped_im_arr, 0, 255)
         warped_im = Image.fromarray(np.uint8(warped_im_arr))
+        positions[0] -= warped_im.size[0]//2 - 450
+        positions[0] /= 900/256
+        positions[1] -= warped_im.size[1]//2 - 450
+        positions[1] /= 900 / 256
         warped_im = warped_im.resize((256, 256), box=(
             warped_im.size[0]//2 - 450, warped_im.size[1]//2 - 450,
             warped_im.size[0]//2 + 450, warped_im.size[1]//2 + 450
@@ -173,10 +180,19 @@ def generate(num_images: int):
         with open(f"../../data/generated/{fname}.json", "w") as write_file:
             data = {
                 "square": squares,
-                "position": positions
+                "position": list(positions)
             }
             write_file.write(json.dumps(data))
 
+def display_markers(im: Image.Image, true_markers, output_markers=None):
+    marker: Image.Image = Image.open("../../data_collection/augmentation/assets/small_marker.png")
+    for x, y in true_markers:
+        im.paste(marker, (int(x)-marker.width//2, int(y)-marker.height//2), marker)
+    if output_markers:
+        red_marker: Image.Image = Image.open("../../data_collection/augmentation/assets/red_marker.png")
+        for x, y in output_markers:
+            im.paste(red_marker, (int(x)-red_marker.width//2, int(y)-red_marker.height//2), red_marker)
+    im.show()
 
 if __name__ == '__main__':
     generate(10_000)

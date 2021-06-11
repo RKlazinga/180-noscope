@@ -10,13 +10,14 @@ from tqdm import tqdm
 import learning.classification.dataset as dataset
 from learning.perspective.network import PerspectiveNetwork
 from learning.util.conv_unit import ConvUnit
+import matplotlib.pyplot as plt
 
 
-class ClassificationNetwork(nn.Module):
+class HeatmapNetwork(nn.Module):
 
     IN_SIZE = 256
     CONV_LAYERS = 8
-    # CLASSES_OUT = 83  # 82 patches on a dartboard + no darts as the 83rd class
+    CLASSES_OUT = 256*256  # 82 patches on a dartboard + no darts as the 83rd class
 
     def __init__(self, mult=8):
         """
@@ -42,9 +43,9 @@ class ClassificationNetwork(nn.Module):
         total_vars = int((self.IN_SIZE / 2**self.CONV_LAYERS)**2 * total_vars)
         self.layers.append(nn.Linear(total_vars, total_vars))
         self.layers.append(nn.ReLU())
-        self.layers.append(nn.Linear(total_vars, 2))  # self.CLASSES_OUT))
-        self.layers.append(nn.Sigmoid())
-        # self.layers.append(nn.Softmax())
+        self.layers.append(nn.Linear(total_vars, self.CLASSES_OUT))
+        #self.layers.append(nn.ReLU())
+        self.layers.append(nn.Softmax())
 
         self.model = nn.Sequential(*self.layers)
 
@@ -66,23 +67,23 @@ if __name__ == '__main__':
     perspective_network = PerspectiveNetwork(mult=8).to(device)
     perspective_network.load_state_dict(torch.load("NETWORK-2.71.pth", map_location=device))
 
-    network = ClassificationNetwork(32).to(device)
+    network = HeatmapNetwork().to(device)
 
     #if os.path.isfile("C2_NETWORK.pth"):
     #    network.load_state_dict(torch.load("C2_NETWORK.pth"))
 
     optimiser = optim.Adam(network.parameters(), lr=LEARNING_RATE)
 
-    train_dataset = dataset.ClassificationDataset(perspective_network, device, split_idx=0)
+    train_dataset = dataset.HeatmapClassificationDataset(perspective_network, device, split_idx=0)
     train_loader = DataLoader(train_dataset, shuffle=True, batch_size=BATCH_SIZE)
 
-    test_dataset = dataset.ClassificationDataset(perspective_network, device, split_idx=1)
+    test_dataset = dataset.HeatmapClassificationDataset(perspective_network, device, split_idx=1)
     test_loader = DataLoader(test_dataset, shuffle=True, batch_size=BATCH_SIZE)
 
     # ensure the train, test and validation dataset have no overlap!
     assert len(set(train_dataset.images).intersection(test_dataset.images)) == 0
 
-    criterion = MSELoss()
+    criterion = nn.CrossEntropyLoss()
 
     prev_test_loss = 1e9
 
@@ -96,7 +97,7 @@ if __name__ == '__main__':
 
             out = network.forward(batch["input"])
             #print(out, batch["class_pos"], criterion(out, batch["class_pos"]))
-            single_loss = criterion(out, batch["class_pos"])
+            single_loss = criterion((out, 256*256), batch["class_pos"])
 
             single_loss.backward()
             optimiser.step()
@@ -117,7 +118,7 @@ if __name__ == '__main__':
         print(f"Epoch {epoch}\t Train Loss={train_loss**0.5}\t Test Loss={test_loss**0.5}")
 
         if test_loss < prev_test_loss:
-            torch.save(network.state_dict(), os.path.join(os.getcwd(), "C2_NETWORK.pth"))
+            torch.save(network.state_dict(), os.path.join(os.getcwd(), "HM_NETWORK.pth"))
             prev_test_loss = test_loss
 
     print(f"Training took {time.time() - start} seconds")
