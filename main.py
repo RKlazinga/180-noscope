@@ -9,7 +9,7 @@ from torchvision import transforms
 import numpy as np
 
 from learning.classification.network import ClassificationNetwork
-from learning.perspective.network import PerspectiveNetwork, warp_image
+from learning.perspective.network import PerspectiveNetwork, warp_image_using_network
 
 
 def classify_raw(im_path, device, pnet, cnet):
@@ -22,7 +22,7 @@ def classify_raw(im_path, device, pnet, cnet):
         box = (0, (im.height - im.width)/2, im.width, im.height - (im.height - im.width)/2)
     im = im.resize((256, 256), box=box)
 
-    warped_im = warp_image(pnet, device, im)
+    warped_im = warp_image_using_network(pnet, device, im)
 
     classification_in_tensor = transforms.ToTensor()(warped_im).view(1, 3, 256, 256)
     c_out = cnet(classification_in_tensor)[0]
@@ -44,7 +44,7 @@ def classify_raw(im_path, device, pnet, cnet):
 
     # classification_choice = torch.argmax(classification_out)
 
-    im_show = Image.new("RGB", (3 * 256, 300))
+    im_show = Image.new("RGBA", (3 * 256, 300), (0, 0, 0, 255))
     font = ImageFont.FreeTypeFont(r"C:\Windows\fonts\arial.ttf", size=22)
     im_draw = ImageDraw.Draw(im_show)
 
@@ -56,15 +56,20 @@ def classify_raw(im_path, device, pnet, cnet):
     im_show.paste(im, (0, 0))
     im_show.paste(warped_im, (256, 0))
 
-    label_im = Image.open(f"data_collection/perspective_shift/assets/{int(classification_choice)}.png")
+    bg_im = Image.open("data_collection/perspective_shift/assets/bg.png").resize((256, 256))
+    bg_im.putalpha(127)
+    im_show.paste(bg_im, (512, 0), bg_im)
+
+    label_im = Image.open(f"data_collection/perspective_shift/assets/{int(classification_choice)}.png").convert("RGBA")
     label_im = label_im.resize((256, 256))
-    im_show.paste(label_im, (512, 0))
+    im_show.paste(label_im, (512, 0), label_im)
     im_draw.ellipse((512 + 256 * c_out[0] - 3,
                      256 * c_out[1] - 3,
                      512 + 256 * c_out[0] + 3,
                      256 * c_out[1] + 3))
 
     im_show.show()
+    im_show.save("main.png")
 
 
 if __name__ == '__main__':

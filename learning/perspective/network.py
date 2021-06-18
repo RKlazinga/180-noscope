@@ -56,7 +56,7 @@ class PerspectiveNetwork(nn.Module):
         return self.model(x)
 
 
-def warp_image(p_network, device, image):
+def warp_image_using_network(p_network, device, image):
     single = transforms.ToTensor()(image).view(1, 3, 256, 256)
 
     # feed through perspective network
@@ -66,9 +66,13 @@ def warp_image(p_network, device, image):
     out_parsed = []
     for i in range(4):
         out_parsed.append([perspective_out[0][i*2], perspective_out[0][i*2 + 1]])
+    perspective_in = np.float32(out_parsed)
 
+    return warp_image_from_coords(perspective_in, image)
+
+def warp_image_from_coords(perspective_in, im):
     # apply perspective network answer
-    im_cv = np.array(image)
+    im_cv = np.array(im)
 
     radius = 80
     padding = 128 - radius
@@ -77,7 +81,6 @@ def warp_image(p_network, device, image):
     offset = radius * 63/389
 
     size = 2 * padding + 2 * radius
-    perspective_in = np.float32(out_parsed)
 
     perspective_target = np.float32([
         [padding + radius - offset, padding],

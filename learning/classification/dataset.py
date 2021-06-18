@@ -8,7 +8,7 @@ from torchvision import transforms
 import numpy as np
 from scipy import ndimage
 
-from learning.perspective.network import warp_image
+from learning.perspective.network import warp_image_using_network
 
 
 class ClassificationDataset(data.Dataset):
@@ -70,7 +70,7 @@ class ClassificationDataset(data.Dataset):
 
         if im_type == "p":
             single_im = Image.open(f"data/augmented/{name}")
-            warped_im = warp_image(self.perspective_net, self.device, single_im)
+            warped_im = warp_image_using_network(self.perspective_net, self.device, single_im)
 
             with open(f"data/augmented/{os.path.splitext(name)[0]}.json") as readfile:
                 info = json.loads(readfile.read(-1))

@@ -20,7 +20,7 @@ size = 2 * padding + 2 * radius
 
 
 class UI(QWidget):
-    IM_WIDTH, IM_HEIGHT = 800, size*2
+    IM_WIDTH, IM_HEIGHT = 1100, size*2
 
     def __init__(self):
         super().__init__()
@@ -75,7 +75,9 @@ class UI(QWidget):
 
         self.perspective_source = np.float32(self.perspective_source)
 
-        self.im_view.setMinimumSize(self.IM_WIDTH, self.IM_HEIGHT)
+        self.im_view.setFixedSize(self.IM_WIDTH, self.IM_HEIGHT)
+        self.im_view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.im_view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.layout.addWidget(self.im_view, 0, 0, 3, 1)
 
         self.sample_output = QLabel()
