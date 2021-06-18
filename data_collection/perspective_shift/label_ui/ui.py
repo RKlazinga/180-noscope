@@ -3,11 +3,11 @@ import os
 import cv2
 import numpy as np
 
-from PyQt5.QtCore import QPointF, Qt
-from PyQt5.QtGui import QPixmap, QImage, QKeyEvent, QColor
+from PyQt5.QtCore import QPointF, Qt, QLine, QLineF
+from PyQt5.QtGui import QPixmap, QImage, QKeyEvent, QColor, QPen
 from PyQt5.QtWidgets import *
 
-from data_collection.perspective_shift.label_ui import PerspectiveMarker, ClickablePixmapItem
+from data_collection.perspective_shift.label_ui.items import PerspectiveMarker, ClickablePixmapItem
 
 
 padding = 60
@@ -20,7 +20,7 @@ size = 2 * padding + 2 * radius
 
 
 class UI(QWidget):
-    IM_WIDTH, IM_HEIGHT = 800, size*2
+    IM_WIDTH, IM_HEIGHT = 1100, size*2
 
     def __init__(self):
         super().__init__()
@@ -50,24 +50,34 @@ class UI(QWidget):
         ]
 
         self.perspective_target = np.float32([
-            [padding + radius - offset, padding],
+            [padding + radius + offset, padding],
             [padding + radius - offset, padding + 2*radius],
             [padding, padding + radius - offset],
-            [padding + 2*radius, padding + radius - offset]
+            [padding + 2*radius, padding + radius + offset]
         ])
 
+        # add connecting lines between markers
+        self.vertical_line: QGraphicsLineItem = self.im_scene.addLine(125, 25, 125, 225)
+        self.vertical_line.setPen(QColor(255, 255, 255, 100))
+        self.horizontal_line: QGraphicsLineItem = self.im_scene.addLine(25, 125, 225, 125)
+        self.horizontal_line.setPen(QColor(255, 255, 255, 100))
+
         # add perspective markers
-        self.marker_size = QPixmap("perspective_shift/marker.png").size()
+        self.marker_size = QPixmap("data_collection/perspective_shift/marker.png").size()
+        markers = []
         for i in range(4):
-            self.im_scene.addItem(PerspectiveMarker(i,
-                                                    self.marker_clicked_callback,
-                                                    self.marker_moved_callback,
-                                                    self.perspective_source[i]))
+            marker = PerspectiveMarker(i,
+                                       self.marker_clicked_callback,
+                                       self.marker_moved_callback,
+                                       self.perspective_source[i])
+            self.im_scene.addItem(marker)
         self.highlighted_marker: PerspectiveMarker = None
 
         self.perspective_source = np.float32(self.perspective_source)
 
-        self.im_view.setMinimumSize(self.IM_WIDTH, self.IM_HEIGHT)
+        self.im_view.setFixedSize(self.IM_WIDTH, self.IM_HEIGHT)
+        self.im_view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.im_view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.layout.addWidget(self.im_view, 0, 0, 3, 1)
 
         self.sample_output = QLabel()
@@ -81,12 +91,12 @@ class UI(QWidget):
         self.classification_box_scene = QGraphicsScene()
         self.classification_box.setScene(self.classification_box_scene)
 
-        bg_item = QGraphicsPixmapItem(QPixmap("perspective_shift/assets/bg.png"))
+        bg_item = QGraphicsPixmapItem(QPixmap("data_collection/perspective_shift/assets/bg.png"))
         bg_item.setScale(size/460)
         self.classification_box_scene.addItem(bg_item)
 
         self.count_dict = dict()
-        for i in os.listdir("perspective_shift/assets"):
+        for i in os.listdir("data_collection/perspective_shift/assets"):
             if i != "bg.png":
                 item = ClickablePixmapItem(i, size/460, self.classification_clicked_callback)
                 self.classification_box_scene.addItem(item)
@@ -112,20 +122,23 @@ class UI(QWidget):
         self.next_image()
         self.show()
 
+        for m in markers:
+            self.marker_moved_callback(m)
+
     def classification_clicked_callback(self, idx, new_count):
         self.count_dict[idx] = new_count
 
     def next_image(self):
         # if an image is loaded, save the perspective coords and the output image
         if self.im_path:
-            self.im_warped.save(f"corrected/{self.im_path}")
+            self.im_warped.save(f"data/corrected/{self.im_path}")
 
             # save coords and dart count
             data = {
                 "perspective": self.perspective_source.tolist(),
                 "darts": self.count_dict
             }
-            with open(f"corrected/{os.path.splitext(self.im_path)[0]}.json", "w") as writefile:
+            with open(f"data/corrected/{os.path.splitext(self.im_path)[0]}.json", "w") as writefile:
                 writefile.write(json.dumps(data))
 
             # reset dart count
@@ -138,9 +151,9 @@ class UI(QWidget):
             self.open_image(new_im)
 
     def skip_image(self):
-        file_exists = os.path.isfile("corrected/_skip.txt")
+        file_exists = os.path.isfile("data/corrected/_skip.txt")
 
-        with open("corrected/_skip.txt", "a") as writefile:
+        with open("data/corrected/_skip.txt", "a") as writefile:
             if file_exists:
                 writefile.write("|")
             writefile.write(self.im_path)
@@ -149,13 +162,13 @@ class UI(QWidget):
         self.next_image()
 
     def get_raw_image(self):
-        raw_images = set(os.listdir("raw"))
-        corrected_images = set(os.listdir("corrected"))
+        raw_images = set(os.listdir("data/raw"))
+        corrected_images = set(os.listdir("data/corrected"))
 
         uncorrected_images = raw_images.difference(corrected_images)
 
-        if os.path.isfile("corrected/_skip.txt"):
-            with open("corrected/_skip.txt", "r") as readfile:
+        if os.path.isfile("data/corrected/_skip.txt"):
+            with open("data/corrected/_skip.txt", "r") as readfile:
                 skipped_images = set(readfile.read(-1).split("|"))
                 uncorrected_images = uncorrected_images.difference(skipped_images)
 
@@ -170,14 +183,14 @@ class UI(QWidget):
     def open_image(self, path):
         self.im_path = path
 
-        pixmap = QPixmap(f"raw/{self.im_path}")
+        pixmap = QPixmap(f"data/raw/{self.im_path}")
         self.im.setPixmap(pixmap)
 
         scale = max(pixmap.width() / self.IM_WIDTH, pixmap.height() / self.IM_HEIGHT)
         self.im_scale = scale
         self.im.setScale(1 / scale)
 
-        self.im_cv_raw = cv2.imread(f"raw/{self.im_path}")
+        self.im_cv_raw = cv2.imread(f"data/raw/{self.im_path}")
 
     def marker_clicked_callback(self, marker: PerspectiveMarker):
         if self.highlighted_marker:
@@ -189,9 +202,22 @@ class UI(QWidget):
         halo.setStrength(0.8)
         marker.setGraphicsEffect(halo)
 
-    def marker_moved_callback(self, marker_idx, pos: QPointF):
-        self.perspective_source[marker_idx][0] = (pos.x() + self.marker_size.width()//2) * self.im_scale
-        self.perspective_source[marker_idx][1] = (pos.y() + self.marker_size.height()//2) * self.im_scale
+    def marker_moved_callback(self, marker: PerspectiveMarker):
+        self.perspective_source[marker.idx][0] = (marker.pos().x() + self.marker_size.width()//2) * self.im_scale
+        self.perspective_source[marker.idx][1] = (marker.pos().y() + self.marker_size.height()//2) * self.im_scale
+
+        if marker.idx < 2:
+            line = self.vertical_line
+        else:
+            line = self.horizontal_line
+
+        delta = QPointF(self.marker_size.width() / 2, self.marker_size.height() / 2)
+        if marker.idx % 2 == 1:
+            a, b = marker.pos() + delta, line.line().p2()
+        else:
+            a, b = line.line().p1(), marker.pos() + delta
+
+        line.setLine(QLineF(a, b))
 
         self.recompute_warped()
 
@@ -216,4 +242,4 @@ class UI(QWidget):
                 self.highlighted_marker.moveBy(0, 1)
             if event.key() == Qt.Key_D:
                 self.highlighted_marker.moveBy(1, 0)
-            self.marker_moved_callback(self.highlighted_marker.idx, self.highlighted_marker.pos())
+            self.marker_moved_callback(self.highlighted_marker)

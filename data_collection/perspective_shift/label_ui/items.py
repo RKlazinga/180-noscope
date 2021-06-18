@@ -7,7 +7,7 @@ class ClickablePixmapItem(QGraphicsPixmapItem):
         super().__init__()
         self.idx = int(filename.split(".")[0])
         self.callback = callback
-        self.setPixmap(QPixmap(f"perspective_shift/assets/{filename}"))
+        self.setPixmap(QPixmap(f"data_collection/perspective_shift/assets/{filename}"))
         self.count = 0
         self.setScale(scale)
 
@@ -44,11 +44,11 @@ class PerspectiveMarker(QGraphicsPixmapItem):
         self.move_callback = move_callback
 
         self.setPos(*pos)
-        self.setPixmap(QPixmap(f"perspective_shift/marker{idx}.png"))
+        self.setPixmap(QPixmap(f"data_collection/perspective_shift/marker{idx}.png"))
 
     def mousePressEvent(self, event):
         self.click_callback(self)
 
     def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):
-        self.move_callback(self.idx, self.pos())
+        self.move_callback(self)
         self.setPos(self.pos() + (event.pos() - event.lastPos()))

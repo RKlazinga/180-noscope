@@ -1,12 +1,16 @@
 import os
 import time
 
+import cv2
 import torch
 import torchsummary
+from PIL import Image
 from torch.nn import MSELoss
 from torch.utils.data import DataLoader
 from torch import nn, optim
 from torch.utils.tensorboard import SummaryWriter
+from torchvision import transforms
+import numpy as np
 from tqdm import tqdm
 
 from learning.perspective.dataset import PerspectiveDataset
@@ -52,8 +56,45 @@ class PerspectiveNetwork(nn.Module):
         return self.model(x)
 
 
+def warp_image_using_network(p_network, device, image):
+    single = transforms.ToTensor()(image).view(1, 3, 256, 256)
+
+    # feed through perspective network
+    with torch.no_grad():
+        perspective_out = p_network(single.to(device))
+
+    out_parsed = []
+    for i in range(4):
+        out_parsed.append([perspective_out[0][i*2], perspective_out[0][i*2 + 1]])
+    perspective_in = np.float32(out_parsed)
+
+    return warp_image_from_coords(perspective_in, image)
+
+def warp_image_from_coords(perspective_in, im):
+    # apply perspective network answer
+    im_cv = np.array(im)
+
+    radius = 80
+    padding = 128 - radius
+    # offset is the distance between the center-line and the corner we are targeting
+    # on 389 radius the offset is 63, so
+    offset = radius * 63/389
+
+    size = 2 * padding + 2 * radius
+
+    perspective_target = np.float32([
+        [padding + radius - offset, padding],
+        [padding + radius - offset, padding + 2*radius],
+        [padding, padding + radius - offset],
+        [padding + 2*radius, padding + radius - offset]
+    ])
+
+    matrix = cv2.getPerspectiveTransform(perspective_in, perspective_target)
+    result = cv2.warpPerspective(im_cv, matrix, (size, size))
+    return Image.fromarray(result)
+
+
 if __name__ == '__main__':
-    os.chdir(os.path.dirname(os.getcwd()))
 
     writer = SummaryWriter()
 
@@ -82,7 +123,7 @@ if __name__ == '__main__':
     assert len(set(train_dataset.images).intersection(validation_dataset.images)) == 0
 
     assert len(train_dataset) + len(test_dataset) + len(validation_dataset) == \
-           len([x for x in os.listdir("augmented") if not x.endswith((".keep", ".json"))])
+           len([x for x in os.listdir("data/augmented") if not x.endswith((".keep", ".json"))])
 
     # ensure the overlap of ground images between datasets is minimal
     assert len(set([x.split("-")[0] for x in train_dataset.images]).intersection(set([x.split("-")[0] for x in test_dataset.images]))) < 2

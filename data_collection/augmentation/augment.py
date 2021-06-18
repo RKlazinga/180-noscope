@@ -22,23 +22,24 @@ KELVIN_TABLE = [
 
 
 def display_markers(im: Image.Image, true_markers, output_markers=None):
-    marker: Image.Image = Image.open("augmentation/assets/small_marker.png")
+    im = im.copy()
+    marker: Image.Image = Image.open("data_collection/augmentation/assets/small_marker.png")
     for x, y in true_markers:
         im.paste(marker, (int(x)-marker.width//2, int(y)-marker.height//2), marker)
     if output_markers:
-        red_marker: Image.Image = Image.open("augmentation/assets/red_marker.png")
+        red_marker: Image.Image = Image.open("data_collection/augmentation/assets/red_marker.png")
         for x, y in output_markers:
             im.paste(red_marker, (int(x)-red_marker.width//2, int(y)-red_marker.height//2), red_marker)
-    im.show()
+    return im
 
 
 def augment_all():
     skip_list = []
-    if os.path.isfile("corrected/_skip.txt"):
-        with open("corrected/_skip.txt", "r") as readfile:
+    if os.path.isfile("data/corrected/_skip.txt"):
+        with open("data/corrected/_skip.txt", "r") as readfile:
             skip_list = readfile.read(-1).split("|")
 
-    for i in tqdm(os.listdir("raw")):
+    for i in tqdm(os.listdir("data/raw")):
         if i == ".keep" or i in skip_list:
             continue
         for _ in range(20):
@@ -55,17 +56,17 @@ def augment(im_path):
     os.chdir(os.path.split(os.path.dirname(os.path.realpath(__file__)))[0])
 
     im_name, im_ext = os.path.splitext(im_path)
-    if im_path not in os.listdir("raw"):
+    if im_path not in os.listdir("data/raw"):
         raise FileNotFoundError(f"{im_path} could not be found in the list of raw images")
 
-    if im_name + ".json" not in os.listdir("corrected"):
+    if im_name + ".json" not in os.listdir("data/corrected"):
         raise FileNotFoundError(f"{im_name} has not been labelled yet! (no file '{im_name}.json' in corrected)")
 
-    with open(f"corrected/{im_name}.json") as read_file:
+    with open(f"data/corrected/{im_name}.json") as read_file:
         im_label = json.loads(read_file.read(-1))
     persp = np.float32(im_label["perspective"])
 
-    im: Image.Image = Image.open(f"raw/{im_path}")
+    im: Image.Image = Image.open(f"data/raw/{im_path}")
     # downscale image to reasonable height
     scale_factor = 500 / im.height
     persp = persp * scale_factor
@@ -134,8 +135,8 @@ def augment(im_path):
     warped_im = Image.fromarray(np.uint8(warped_im_arr))
 
     fname = f"{im_name}-{hex(random.randint(2**20, 2**24))[2:]}"
-    warped_im.save(f"augmented_data/{fname}{im_ext}")
-    with open(f"augmented_data/{fname}.json", "w") as write_file:
+    warped_im.save(f"data/augmented/{fname}{im_ext}")
+    with open(f"data/augmented/{fname}.json", "w") as write_file:
         data = {
             "darts": im_label["darts"],
             "perspective": warped_persp.tolist()
